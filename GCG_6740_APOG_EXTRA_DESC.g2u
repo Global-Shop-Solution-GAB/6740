@@ -1,0 +1,123 @@
+﻿Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+V.Local.sRet.Declare(String,"")
+V.Local.iCount.Declare(Long,0)
+V.Local.i.Declare(Long,0)
+V.Local.sPart.Declare(String,"")
+V.Local.sTemp.Declare(String,"")
+V.Local.sSql.Declare(String,"")
+V.Local.sDesc.Declare(String,"")
+v.Local.bUseRevision.Declare(Boolean,False)
+V.Local.sID.Declare(String,"")
+V.Local.iCol.Declare(Long,0)
+V.Local.bRet.Declare(Boolean,False)
+V.Local.iTemp.Declare(Long,0)
+V.Local.iDesCol.Declare(Long,0)
+V.Local.iPartCol.Declare(Long,0)
+V.Local.iRevCol.Declare(Long,0)
+
+F.Intrinsic.Control.SelectCase(V.Caller.Hook)
+	F.Intrinsic.Control.Case(56301)
+		'Get whether using Revision Level
+		F.Global.General.ReadOption(70008,0,False,0,v.Local.bUseRevision)
+		
+		F.Intrinsic.BDF.Load("AutoPO-bdf","AutomatedPurchaseOrderGeneration-dgvAutoPO-bdf")
+		F.Intrinsic.BDF.Clone("AutoPO-bdf","Load")
+		F.Intrinsic.BDF.ReadRowCount("AutoPO-bdf",V.Local.iCount)
+		F.Intrinsic.BDF.ReadColumnTitle("Load",V.Local.sTemp)
+		F.Intrinsic.String.IsInString(V.Local.sTemp,"Extra Description",TRUE,V.Local.bRet)
+		F.Intrinsic.Control.If(V.Local.bRet,=,False)
+			F.Intrinsic.BDF.AddColumn("Load","Extra_Desc","S")
+		F.Intrinsic.Control.EndIf
+		F.Intrinsic.String.Split(V.Local.sTemp,"*!*",V.Local.sTemp)
+		F.Intrinsic.Control.For(V.Local.i,0,V.Local.sTemp.UBound,1)
+			F.Intrinsic.Control.If(V.Local.sTemp(V.Local.i).Trim,=,"Extra Description")
+				V.Local.iDesCol.Set(V.Local.i)
+			F.Intrinsic.Control.ElseIf(V.Local.sTemp(V.Local.i).Trim,=,"Part")
+				V.Local.iPartCol.Set(V.Local.i)
+			F.Intrinsic.Control.ElseIf(V.Local.sTemp(V.Local.i).Trim,=,"Revision")
+				V.Local.iRevCol.Set(V.Local.i)	
+			F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.Next(V.Local.i)
+'		F.Intrinsic.BDF.AddColumn("AutoPO-bdf","Extra_Desc","S")
+		
+		f.ODBC.Connection!con.OpenCompanyConnection
+		F.Intrinsic.Math.Sub(V.Local.iCount,1,V.Local.iCount)
+		F.Intrinsic.Control.For(V.Local.i,0,V.Local.iCount,1)
+			F.Intrinsic.BDF.ReadRow("AutoPO-bdf",V.Local.i,V.Local.sTemp)
+			
+			F.Intrinsic.String.Split(V.Local.sTemp,"|~|",V.Local.sPart)
+			F.Intrinsic.Control.If(V.Local.bRet,=,False)
+				F.Intrinsic.Control.If(V.Local.i,=,0)
+					F.Intrinsic.Math.Add(V.Local.sPart.UBound,1,V.Local.iCol)
+					F.Intrinsic.BDF.SetColumnTitle("Load",V.Local.iCol,"Extra Description")
+				F.Intrinsic.Control.EndIf
+			F.Intrinsic.Control.EndIf
+			
+			F.Intrinsic.Control.If(V.Local.bUseRevision)
+				F.Intrinsic.String.RPad(V.Local.sPart(V.Local.iPartCol).Trim," ",17,V.Local.sPart(V.Local.iPartCol))
+				F.Intrinsic.String.Build("{0}{1}",V.Local.sPart(V.Local.iPartCol),V.Local.sPart(V.Local.iRevCol).Trim,V.Local.sPart)
+				V.Local.sPart.Set(V.Local.sPart.Trim)
+			F.Intrinsic.Control.Else
+				V.Local.sPart.Set(V.Local.sPart(V.Local.iPartCol).Trim)
+			F.Intrinsic.Control.EndIf
+			
+			F.Intrinsic.String.Build("Select RTRIM(REPLACE(REPLACE(REPLACE(TEXT,Char(10),' '),Char(13),' '),Char(9),' ')) AS 'Extra Description' From Inv_Extra_Text Where Part = '{0}'",V.Local.sPart.PSQLFriendly,V.Local.sSql)
+			F.ODBC.Connection!Con.ExecuteAndReturn(V.Local.sSql,V.Local.sDesc)
+'			F.Intrinsic.Control.If(V.Local.bRet,=,False)
+'				F.Intrinsic.String.Build("{0}|~|{1}",V.Local.sTemp,V.Local.sDesc.Trim,V.Local.sRet)
+'			F.Intrinsic.Control.Else
+				F.Intrinsic.String.Split(V.Local.sTemp,"|~|",V.Local.sTemp)
+				V.Local.sTemp(V.Local.iDesCol).Set(V.Local.sDesc.Trim)
+				F.Intrinsic.Control.For(V.Local.iTemp,1,V.Local.sTemp.UBound,1)
+					F.Intrinsic.String.Build("{0}|~|{1}",V.Local.sTemp,V.Local.sTemp(V.Local.iTemp),V.Local.sTemp)
+				F.Intrinsic.Control.Next(V.Local.iTemp)
+'				V.Local.sTemp.Set(V.Local.sRet)
+			V.Local.sRet.Set(V.Local.sTemp)
+'			F.Intrinsic.Control.EndIf
+			F.Intrinsic.BDF.WriteRow("Load",V.Local.sRet)
+'			F.Intrinsic.BDF.setData("AutoPO-bdf",V.Local.iCol,V.Local.i,V.Local.sDesc.Trim)
+		F.Intrinsic.Control.Next(V.Local.i)
+		
+		F.Intrinsic.BDF.Save("Load", "AutomatedPurchaseOrderGeneration-dgvAutoPO-bdf")
+	F.Intrinsic.Control.CaseElse
+		F.Intrinsic.Control.End
+		
+F.Intrinsic.Control.EndSelect
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: GCG_6740_APOG_EXTRA_DESC.g2u {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Exit)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.Exit.Start
+F.Intrinsic.Control.SetErrorHandler("Exit_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Exit_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+Program.Sub.Exit.End
+
+Program.Sub.Comments.Start
+${$5$}$2.0.0.0$}$2
+${$6$}$rking$}$20221121150346945$}$QNdZLVy4bWuiWa9jh1ZTiKVzNnEzrvL4HXwoDXWsSicTKbYnpu0qw1X9yx3IEJ7CP9R09AqFnLM=
+Program.Sub.Comments.End
